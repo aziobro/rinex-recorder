@@ -1,0 +1,7 @@
+[Unit]
+Description=Convert yesterday's raw RTCM3 archive to RINEX (one-shot, run by rinex-convert.timer)
+
+[Service]
+Type=oneshot
+User=aziobro
+ExecStart=/bin/bash -c '/home/aziobro/rinex-recorder/scripts/convert-daily.sh "$(date -u -d yesterday +%%Y%%m%%d)"'

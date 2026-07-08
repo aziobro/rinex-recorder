@@ -1,0 +1,15 @@
+[Unit]
+Description=RTCM3 raw capture from gps-base-station local NTRIP mountpoint
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/aziobro/rinex-recorder/config.env
+ExecStart=/usr/bin/python3 /home/aziobro/rinex-recorder/capture/rtcm_capture.py
+Restart=always
+RestartSec=5
+User=aziobro
+
+[Install]
+WantedBy=multi-user.target

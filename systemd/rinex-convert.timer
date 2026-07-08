@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily RTCM3 -> RINEX conversion (00:10 UTC, well after midnight rotation)
+
+[Timer]
+OnCalendar=*-*-* 00:10:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
