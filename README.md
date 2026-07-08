@@ -65,8 +65,8 @@ themselves and don't require you to supply it.
 
 1. Build `convbin` (only piece of RTKLIB we need):
    ```
-   git clone https://github.com/tomojitakasu/RTKLIB.git
-   cd RTKLIB/app/consapp/convbin/gcc && make
+   git clone --depth 1 https://github.com/tomojitakasu/RTKLIB.git
+   cd RTKLIB/app/convbin/gcc && make
    sudo cp convbin /usr/local/bin/
    ```
 2. `cp config.env.sample config.env` and edit paths/antenna metadata.
@@ -98,3 +98,38 @@ themselves and don't require you to supply it.
   same Pi for gps-base-station: capture reliability shouldn't depend on the
   converter being bug-free. If `convbin`'s output is ever wrong, the raw
   bytes are still there to reprocess.
+- **30-second RINEX epochs (`EPOCH_INTERVAL_SEC`), not the raw 1Hz capture
+  rate.** Matches gps-base-station's on-device `rinex_logger.cpp`
+  (`kEpochInterval = 30`) and the standard CORS/IGS static-observation rate --
+  keeps output files consistent between the two independent RINEX pipelines
+  and ~30x smaller. The raw archive stays at full 1Hz in case finer
+  resolution is ever needed later; only the converted `.obs` output is
+  thinned. Decimation is done by `scripts/decimate_rinex.py` against
+  convbin's full-rate text output, not convbin's own `-ti` flag -- see
+  "convbin's `-ti 30` produces zero epochs" below.
+
+## Known issue: convbin's `-ti 30` silently produces zero epochs
+
+Empirically (2026-07-08, RTKLIB convbin 2.4.2), running `convbin -ti 30`
+against this project's captured RTCM3 data produces a RINEX file with **zero
+observation epochs** -- `-ti 10/15/20/25` all work fine, `-ti 30` specifically
+doesn't (with or without `-scan` first). Rather than depend on that
+undocumented, version-specific behavior, `convert-daily.sh` runs `convbin`
+at full rate and decimates the resulting plain-text RINEX body itself
+(`scripts/decimate_rinex.py`), where the epoch-keep rule is fully ours to see
+and test. If a future RTKLIB version fixes this, it'd be reasonable to drop
+the post-processing step and pass `-ti` directly again -- just re-verify
+against real data first, the same way this was found.
+
+## Requires gps-base-station ota142+
+
+Earlier firmware had a bug where `LocalCaster`'s internal broadcast queue
+(4 deep) would overflow roughly every 30 seconds -- exactly when the 5s/10s/
+30s periodic RTCM messages converged with the 1Hz MSM7 burst in the same
+batch window -- and respond by force-disconnecting **every** connected local
+NTRIP client, not just dropping the excess packet. This capture client's
+continuous connection is what surfaced the bug (previous local clients were
+only ever connected briefly). Fixed in gps-base-station ota142 (see its
+`docs/agent-memory/project_ntrip.md`); against ota141 and earlier, expect
+frequent "Connection reset by peer" reconnects and systematically missing
+`:00`/`:30`-second epochs.
