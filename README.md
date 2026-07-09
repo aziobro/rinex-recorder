@@ -30,8 +30,9 @@ capture/rtcm_capture.py  ---- continuous, systemd Restart=always
         v
 raw/rtcm3_YYYYMMDD.bin
         |  scripts/convert-daily.sh (RTKLIB convbin), daily via systemd timer
+        |  -- or scripts/merge-days.sh START END for a multi-day session
         v
-rinex/YYYYMMDD.obs
+rinex/YYYYMMDD.obs  or  rinex/merged_START_END.obs
 ```
 
 Capture and conversion are deliberately two separate steps (see "Decisions"
@@ -88,6 +89,14 @@ themselves and don't require you to supply it.
    ```
    scripts/convert-daily.sh 20260707
    ```
+6. For a longer session than one day (e.g. before an OPUS/CSRS-PPP submission
+   -- longer static sessions generally resolve more carrier-phase ambiguities
+   and tighten the solution), merge a date range:
+   ```
+   scripts/merge-days.sh 20260707 20260709
+   ```
+   Skips (with a warning) any day in the range that has no raw file, rather
+   than failing outright.
 
 ## Decisions made and why
 
@@ -120,6 +129,21 @@ at full rate and decimates the resulting plain-text RINEX body itself
 and test. If a future RTKLIB version fixes this, it'd be reasonable to drop
 the post-processing step and pass `-ti` directly again -- just re-verify
 against real data first, the same way this was found.
+
+## Known issue: convbin silently fails on a dot-prefixed input filename
+
+Empirically (2026-07-09, RTKLIB convbin 2.4.2): if the file passed as
+convbin's positional input argument has a filename starting with `.` (a
+"hidden" file), convbin exits 0 and prints its normal startup banner but
+**never writes the output file and never processes a single epoch** -- no
+error, no non-zero exit code. Isolated by bisecting every other variable
+(tmpfs vs. real disk, direct command vs. shell function, file size, retry
+count) -- none of those mattered. Only the leading dot on the *input*
+filename did; hidden *output* filenames are unaffected. `merge-days.sh`'s
+temp files are named accordingly (no leading dot on `COMBINED_RAW`).
+`scripts/lib.sh`'s `run_convbin_with_retry` also verifies the output file
+actually exists and is non-empty after each attempt, since convbin's exit
+code alone isn't a reliable success signal here.
 
 ## Requires gps-base-station ota142+
 

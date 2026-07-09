@@ -8,6 +8,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 [ -f "$SCRIPT_DIR/../config.env" ] && source "$SCRIPT_DIR/../config.env"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
 RAW_DIR="${RAW_DIR:-/home/aziobro/rinex-recorder/raw}"
 RINEX_DIR="${RINEX_DIR:-/home/aziobro/rinex-recorder/rinex}"
@@ -45,9 +47,11 @@ fi
 mkdir -p "$RINEX_DIR"
 
 FULL_RATE_FILE="$(mktemp "${RINEX_DIR}/.fullrate_${DATESTAMP}_XXXXXX.obs")"
-trap 'rm -f "$FULL_RATE_FILE"' EXIT
+CONVBIN_LOG="$(mktemp "${RINEX_DIR}/.convbin_${DATESTAMP}_XXXXXX.log")"
+trap 'rm -f "$FULL_RATE_FILE" "$CONVBIN_LOG"' EXIT
 
-"$CONVBIN" -r rtcm3 -v 3.03 \
+run_convbin_with_retry "$FULL_RATE_FILE" "$CONVBIN_LOG" \
+    -r rtcm3 -v 3.03 \
     -hm "$MARKER_NAME" \
     -ha "$ANT_TYPE" \
     -hd "$ANT_DELTA" \
